@@ -51,15 +51,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
     task_sub.add_parser("list", help="List tasks")
 
-    task_remove = task_sub.add_parser("remove", help="Remove a task")
-    task_remove.add_argument("id")
+    task_remove = task_sub.add_parser("remove", help="Remove a task by ID or name")
+    task_remove.add_argument("task")
 
     run_parser = subparsers.add_parser("run", help="Run scheduler loop")
     run_parser.add_argument("--poll-interval", type=int, default=20)
     run_parser.add_argument("--timezone", default=None)
 
-    once_parser = subparsers.add_parser("once", help="Run one task immediately")
-    once_parser.add_argument("id")
+    once_parser = subparsers.add_parser("once", help="Run one task immediately by ID or name")
+    once_parser.add_argument("task")
     once_parser.add_argument("--timezone", default=None)
 
     return parser
@@ -93,6 +93,21 @@ def _build_schedule(args: argparse.Namespace) -> dict:
         return {"type": "at_times", "times": parse_at_times(args.at_times)}
 
     raise ValueError("One schedule must be provided")
+
+
+def _resolve_task(tasks: list[Task], key: str) -> tuple[Task | None, str | None]:
+    exact_id = next((task for task in tasks if task.id == key), None)
+    if exact_id is not None:
+        return exact_id, None
+
+    name_matches = [task for task in tasks if task.name == key]
+    if len(name_matches) == 1:
+        return name_matches[0], None
+    if len(name_matches) > 1:
+        ids = ", ".join(task.id for task in name_matches)
+        return None, f"Multiple tasks share name '{key}'. Use task ID instead: {ids}"
+
+    return None, f"Task not found: {key}"
 
 
 def _cmd_init(storage: Storage) -> int:
@@ -185,13 +200,14 @@ def _cmd_task(args: argparse.Namespace, storage: Storage) -> int:
         return 0
 
     if args.task_command == "remove":
-        old_len = len(tasks)
-        tasks = [task for task in tasks if task.id != args.id]
-        if len(tasks) == old_len:
-            print(f"Task not found: {args.id}", file=sys.stderr)
+        target, error = _resolve_task(tasks, args.task)
+        if target is None:
+            print(error, file=sys.stderr)
             return 1
-        storage.save_tasks(tasks)
-        print(f"Task removed: {args.id}")
+
+        remaining = [task for task in tasks if task.id != target.id]
+        storage.save_tasks(remaining)
+        print(f"Task removed: {target.id} ({target.name})")
         return 0
 
     return 1
@@ -205,9 +221,15 @@ def _cmd_run(args: argparse.Namespace, storage: Storage) -> int:
 
 
 def _cmd_once(args: argparse.Namespace, storage: Storage) -> int:
+    tasks = storage.load_tasks()
+    target, error = _resolve_task(tasks, args.task)
+    if target is None:
+        print(error, file=sys.stderr)
+        return 1
+
     executor = TaskExecutor(web_automator=WebClaudeAutomator(storage.base_dir / "browser-profile"))
     scheduler = Scheduler(storage=storage, executor=executor, timezone_name=args.timezone)
-    result = scheduler.run_task_now(args.id)
+    result = scheduler.run_task_now(target.id)
     if result.ok:
         print("Task executed successfully.")
         if result.output:

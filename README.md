@@ -68,6 +68,9 @@ hiclaw once <task-id>
 
 Web session is persisted under `<storage-dir>/browser-profile` (default `~/.hiclaw/browser-profile`).
 
+`hiclaw once` and `hiclaw task remove` both accept task ID or exact task name.
+If multiple tasks share the same name, HiClaw will ask you to use ID.
+
 ## Command Reference
 
 ```bash
