@@ -1,26 +1,22 @@
 # HiClaw
 
-HiClaw is a cross-platform CLI scheduler (WSL/macOS) that can send scheduled messages through Claude Code.
+HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messages with Claude.
 
-## Current Scope (v0.1)
+## Features
 
-- Claude authentication workflow:
+- Auth helpers
   - `hiclaw auth status`
-  - `hiclaw auth login`
-  - `hiclaw auth open-web`
+  - `hiclaw auth login` (Claude Code CLI login)
+  - `hiclaw auth web-login` (Playwright persistent browser login for claude.ai)
   - `hiclaw auth verify`
-- Task scheduler with three trigger styles:
-  - interval (`--every`)
-  - cron (`--cron`)
-  - daily fixed times (`--at-times`)
-- Task operations:
-  - add/list/remove
-  - run one task immediately (`once`)
-  - run daemon loop (`run`)
-- Executors:
-  - `auto` (same as `cli` in v0.1)
-  - `cli` (uses `claude -p`)
-  - `web` placeholder (planned in next phase)
+- Scheduler triggers
+  - interval (`--every`, e.g. `30m`)
+  - cron (`--cron`, 5-field)
+  - daily fixed times (`--at-times`, e.g. `09:00,14:30`)
+- Executors
+  - `cli`: send via `claude -p`
+  - `web`: send via claude.ai browser automation (Playwright)
+  - `auto`: try `cli` first, fallback to `web`
 
 ## Install
 
@@ -29,22 +25,21 @@ cd HiClaw
 python3 -m pip install -e .
 ```
 
-## Quick Start
+If you want web executor:
 
 ```bash
-# 1) Initialize local storage (~/.hiclaw by default)
+python3 -m pip install -e '.[web]'
+python3 -m playwright install chromium
+```
+
+## Quick Start (CLI executor)
+
+```bash
 hiclaw init
-
-# 2) Check login status
 hiclaw auth status
-
-# 3) If needed, login
 hiclaw auth login
-
-# 4) Verify end-to-end auth + send ability
 hiclaw auth verify --model sonnet
 
-# 5) Add a schedule task
 hiclaw task add \
   --name morning_ping \
   --model sonnet \
@@ -52,9 +47,26 @@ hiclaw task add \
   --message "Reply exactly with: HICLAW_OK" \
   --cron "0 9 * * 1-5"
 
-# 6) Run scheduler loop
 hiclaw run --poll-interval 20
 ```
+
+## Quick Start (Web executor)
+
+```bash
+hiclaw init
+hiclaw auth web-login --wait-seconds 300
+
+hiclaw task add \
+  --name web_ping \
+  --model sonnet \
+  --executor web \
+  --message "Reply exactly with: WEB_OK" \
+  --every 1h
+
+hiclaw once <task-id>
+```
+
+Web session is persisted under `<storage-dir>/browser-profile` (default `~/.hiclaw/browser-profile`).
 
 ## Command Reference
 
@@ -71,6 +83,7 @@ Default directory: `~/.hiclaw`
 - `tasks.json`: task definitions
 - `state.json`: scheduling de-dup state
 - `history.json`: recent run history
+- `browser-profile/`: persistent browser session for web executor
 
 Use custom path:
 
@@ -82,21 +95,16 @@ hiclaw --storage-dir /tmp/hiclaw-data task list
 
 Validated in local environment:
 
-- Unit tests: `python3 -m unittest discover -s tests -v` (9/9 pass)
+- Unit tests: `python3 -m unittest discover -s tests -v` (13/13 pass)
 - Real auth status check: success
 - Real one-shot task send via `claude -p`: success
+- Real auth verify (`hiclaw auth verify`): success
 
-## Roadmap
+## Caveats
 
-- Web executor to open Claude web and automate model/message send (Playwright mode)
-- Better task controls (enable/disable/update)
-- Retry policy and backoff
-- Structured logs and export
-
-## Notes
-
-- `web` executor is intentionally not enabled in v0.1 yet.
-- For unattended scheduling, keep Claude auth session valid.
+- Web automation selectors may break when claude.ai UI changes.
+- For unattended scheduling, keep at least one auth path valid (`cli` or `web`).
+- In WSL, `auth web-login` requires usable GUI/browser environment.
 
 ## License
 

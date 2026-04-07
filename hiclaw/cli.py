@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 
 from .cron import CronExpression, CronError
-from .executors import ClaudeClient, TaskExecutor
+from .executors import ClaudeClient, TaskExecutor, WebClaudeAutomator
 from .models import Task
 from .scheduler import Scheduler
 from .storage import Storage
@@ -27,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
     auth_sub.add_parser("status", help="Show Claude auth status")
     auth_sub.add_parser("login", help="Run 'claude auth login'")
     auth_sub.add_parser("open-web", help="Open Claude web page in browser")
+    web_login_parser = auth_sub.add_parser("web-login", help="Open persistent browser and complete Claude web login")
+    web_login_parser.add_argument("--wait-seconds", type=int, default=300)
 
     verify_parser = auth_sub.add_parser("verify", help="Verify auth by sending a small test prompt")
     verify_parser.add_argument("--model", default="sonnet")
@@ -99,7 +101,7 @@ def _cmd_init(storage: Storage) -> int:
     return 0
 
 
-def _cmd_auth(args: argparse.Namespace) -> int:
+def _cmd_auth(args: argparse.Namespace, storage: Storage) -> int:
     client = ClaudeClient()
     if args.auth_command == "status":
         status = client.auth_status()
@@ -115,6 +117,16 @@ def _cmd_auth(args: argparse.Namespace) -> int:
             print("Claude web opened.")
             return 0
         print("Failed to open browser.", file=sys.stderr)
+        return 1
+
+    if args.auth_command == "web-login":
+        automator = WebClaudeAutomator(storage.base_dir / "browser-profile")
+        result = automator.login_interactive(wait_seconds=args.wait_seconds)
+        if result.ok:
+            print(result.output)
+            return 0
+        if result.error:
+            print(result.error, file=sys.stderr)
         return 1
 
     if args.auth_command == "verify":
@@ -186,13 +198,15 @@ def _cmd_task(args: argparse.Namespace, storage: Storage) -> int:
 
 
 def _cmd_run(args: argparse.Namespace, storage: Storage) -> int:
-    scheduler = Scheduler(storage=storage, executor=TaskExecutor(), timezone_name=args.timezone)
+    executor = TaskExecutor(web_automator=WebClaudeAutomator(storage.base_dir / "browser-profile"))
+    scheduler = Scheduler(storage=storage, executor=executor, timezone_name=args.timezone)
     scheduler.run_forever(poll_interval=args.poll_interval)
     return 0
 
 
 def _cmd_once(args: argparse.Namespace, storage: Storage) -> int:
-    scheduler = Scheduler(storage=storage, executor=TaskExecutor(), timezone_name=args.timezone)
+    executor = TaskExecutor(web_automator=WebClaudeAutomator(storage.base_dir / "browser-profile"))
+    scheduler = Scheduler(storage=storage, executor=executor, timezone_name=args.timezone)
     result = scheduler.run_task_now(args.id)
     if result.ok:
         print("Task executed successfully.")
@@ -215,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_init(storage)
 
     if args.command == "auth":
-        return _cmd_auth(args)
+        return _cmd_auth(args, storage)
 
     if args.command == "task":
         return _cmd_task(args, storage)

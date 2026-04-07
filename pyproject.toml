@@ -11,6 +11,9 @@ authors = [{name = "HiClaw"}]
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+web = ["playwright>=1.45"]
+
 [project.scripts]
 hiclaw = "hiclaw.cli:main"
 
