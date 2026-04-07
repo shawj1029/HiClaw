@@ -1,6 +1,6 @@
 # HiClaw
 
-HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messages with Claude.
+HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messages with Claude. This is used as an automatic message sender, but you can somehow make it a quota refresher.
 
 ## Features
 
