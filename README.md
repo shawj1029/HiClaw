@@ -17,6 +17,11 @@ HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messag
   - `cli`: send via `claude -p`
   - `web`: send via claude.ai browser automation (Playwright)
   - `auto`: try `cli` first, fallback to `web`
+- Daemon controls
+  - `hiclaw start`: run scheduler in background
+  - `hiclaw isalive`: inspect daemon status
+  - `hiclaw kill [ID|PID]` / `hiclaw kill --all`
+  - `hiclaw autostart install|status|remove` (via `crontab @reboot`)
 
 ## Install
 
@@ -48,6 +53,30 @@ hiclaw task add \
   --cron "0 9 * * 1-5"
 
 hiclaw run --poll-interval 20
+```
+
+## Simple Always-On Mode
+
+```bash
+# 1) start in background
+hiclaw start --poll-interval 20
+
+# 2) check daemon
+hiclaw isalive
+
+# 3) stop one daemon by id/pid
+hiclaw kill <daemon-id-or-pid>
+
+# 4) stop all daemons
+hiclaw kill --all
+```
+
+Enable reboot autostart:
+
+```bash
+hiclaw autostart install --poll-interval 20
+hiclaw autostart status
+hiclaw autostart remove
 ```
 
 ## Quick Start (Web executor)
@@ -87,6 +116,8 @@ Default directory: `~/.hiclaw`
 - `state.json`: scheduling de-dup state
 - `history.json`: recent run history
 - `browser-profile/`: persistent browser session for web executor
+- `runtime/daemons.json`: background daemon registry
+- `runtime/hiclaw-run.log`: background run log
 
 Use custom path:
 
@@ -98,7 +129,7 @@ hiclaw --storage-dir /tmp/hiclaw-data task list
 
 Validated in local environment:
 
-- Unit tests: `python3 -m unittest discover -s tests -v` (13/13 pass)
+- Unit tests: `python3 -m unittest discover -s tests -v` (21/21 pass)
 - Real auth status check: success
 - Real one-shot task send via `claude -p`: success
 - Real auth verify (`hiclaw auth verify`): success
@@ -108,6 +139,7 @@ Validated in local environment:
 - Web automation selectors may break when claude.ai UI changes.
 - For unattended scheduling, keep at least one auth path valid (`cli` or `web`).
 - In WSL, `auth web-login` requires usable GUI/browser environment.
+- `autostart` depends on `crontab` availability; if missing, use manual startup scripts.
 
 ## License
 

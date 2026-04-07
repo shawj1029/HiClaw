@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from .cron import CronExpression, CronError
+from .daemon import DaemonManager
 from .executors import ClaudeClient, TaskExecutor, WebClaudeAutomator
 from .models import Task
 from .scheduler import Scheduler
@@ -57,6 +58,24 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run scheduler loop")
     run_parser.add_argument("--poll-interval", type=int, default=20)
     run_parser.add_argument("--timezone", default=None)
+
+    start_parser = subparsers.add_parser("start", help="Start scheduler in background daemon mode")
+    start_parser.add_argument("--poll-interval", type=int, default=20)
+    start_parser.add_argument("--timezone", default=None)
+
+    subparsers.add_parser("isalive", help="Show background daemon status")
+
+    kill_parser = subparsers.add_parser("kill", help="Stop background daemon(s)")
+    kill_parser.add_argument("target", nargs="?", help="Daemon ID or PID")
+    kill_parser.add_argument("--all", action="store_true", help="Stop all daemons")
+
+    autostart_parser = subparsers.add_parser("autostart", help="Manage reboot autostart via crontab")
+    autostart_sub = autostart_parser.add_subparsers(dest="autostart_command", required=True)
+    autostart_sub.add_parser("status", help="Show autostart entries for current storage")
+    autostart_install = autostart_sub.add_parser("install", help="Install @reboot autostart entry")
+    autostart_install.add_argument("--poll-interval", type=int, default=20)
+    autostart_install.add_argument("--timezone", default=None)
+    autostart_sub.add_parser("remove", help="Remove @reboot autostart entry")
 
     once_parser = subparsers.add_parser("once", help="Run one task immediately by ID or name")
     once_parser.add_argument("task")
@@ -220,6 +239,92 @@ def _cmd_run(args: argparse.Namespace, storage: Storage) -> int:
     return 0
 
 
+def _cmd_start(args: argparse.Namespace, storage: Storage) -> int:
+    manager = DaemonManager(storage.base_dir)
+    try:
+        entry = manager.start(poll_interval=args.poll_interval, timezone_name=args.timezone)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(f"HiClaw started: id={entry.id} pid={entry.pid} log={entry.log_path}")
+    return 0
+
+
+def _cmd_isalive(storage: Storage) -> int:
+    manager = DaemonManager(storage.base_dir)
+    statuses = manager.list()
+    if not statuses:
+        print("No daemon records.")
+        return 1
+
+    alive_count = 0
+    for entry, alive in statuses:
+        state = "alive" if alive else "dead"
+        if alive:
+            alive_count += 1
+        print(
+            f"{entry.id} | pid={entry.pid} | {state} | started_at={entry.started_at} "
+            f"| poll={entry.poll_interval}s | timezone={entry.timezone} | log={entry.log_path}"
+        )
+    return 0 if alive_count > 0 else 1
+
+
+def _cmd_kill(args: argparse.Namespace, storage: Storage) -> int:
+    manager = DaemonManager(storage.base_dir)
+    try:
+        killed = manager.kill(target=args.target, kill_all=args.all)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if not killed:
+        print("No running daemon to kill.")
+        return 1
+
+    for entry in killed:
+        print(f"Killed daemon: id={entry.id} pid={entry.pid}")
+    return 0
+
+
+def _cmd_autostart(args: argparse.Namespace, storage: Storage) -> int:
+    manager = DaemonManager(storage.base_dir)
+
+    if args.autostart_command == "status":
+        try:
+            lines = manager.autostart_status()
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if not lines:
+            print("Autostart is not installed for this storage.")
+            return 1
+        for line in lines:
+            print(line)
+        return 0
+
+    if args.autostart_command == "install":
+        try:
+            line = manager.autostart_install(poll_interval=args.poll_interval, timezone_name=args.timezone)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print("Autostart installed:")
+        print(line)
+        return 0
+
+    if args.autostart_command == "remove":
+        try:
+            removed = manager.autostart_remove()
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"Autostart entries removed: {removed}")
+        return 0
+
+    return 1
+
+
 def _cmd_once(args: argparse.Namespace, storage: Storage) -> int:
     tasks = storage.load_tasks()
     target, error = _resolve_task(tasks, args.task)
@@ -258,6 +363,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         return _cmd_run(args, storage)
+
+    if args.command == "start":
+        return _cmd_start(args, storage)
+
+    if args.command == "isalive":
+        return _cmd_isalive(storage)
+
+    if args.command == "kill":
+        return _cmd_kill(args, storage)
+
+    if args.command == "autostart":
+        return _cmd_autostart(args, storage)
 
     if args.command == "once":
         return _cmd_once(args, storage)
