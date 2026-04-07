@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import shutil
 import subprocess
@@ -51,7 +53,24 @@ class ClaudeClient:
         return proc.returncode
 
     def open_web(self, url: str = "https://claude.ai") -> bool:
+        if self._is_wsl() and shutil.which("cmd.exe"):
+            try:
+                proc = subprocess.run(
+                    ["cmd.exe", "/C", "start", "", url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    return True
+            except OSError:
+                pass
         return webbrowser.open(url)
+
+    def _is_wsl(self) -> bool:
+        if os.environ.get("WSL_DISTRO_NAME"):
+            return True
+        return "microsoft" in platform.uname().release.lower()
 
     def send(self, model: str, message: str, timeout_seconds: int = 300) -> ExecutionResult:
         proc = subprocess.run(

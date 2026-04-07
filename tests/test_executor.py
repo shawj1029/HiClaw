@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from hiclaw.executors import AuthStatus, TaskExecutor
+from hiclaw.executors import AuthStatus, ClaudeClient, TaskExecutor
 from hiclaw.models import ExecutionResult, Task
 
 
@@ -94,6 +95,49 @@ class ExecutorTest(unittest.TestCase):
         result = executor.execute(task)
         self.assertTrue(result.ok)
         self.assertEqual(result.output, "web sent")
+
+
+class ClaudeClientOpenWebTest(unittest.TestCase):
+    def test_open_web_wsl_uses_cmd_success(self) -> None:
+        client = ClaudeClient()
+        with (
+            patch.object(client, "_is_wsl", return_value=True),
+            patch("hiclaw.executors.shutil.which", return_value="/mnt/c/Windows/System32/cmd.exe"),
+            patch("hiclaw.executors.subprocess.run") as mock_run,
+            patch("hiclaw.executors.webbrowser.open") as mock_open,
+        ):
+            mock_run.return_value.returncode = 0
+            ok = client.open_web("https://claude.ai")
+
+        self.assertTrue(ok)
+        self.assertEqual(mock_run.call_count, 1)
+        mock_open.assert_not_called()
+
+    def test_open_web_wsl_fallbacks_to_webbrowser(self) -> None:
+        client = ClaudeClient()
+        with (
+            patch.object(client, "_is_wsl", return_value=True),
+            patch("hiclaw.executors.shutil.which", return_value="/mnt/c/Windows/System32/cmd.exe"),
+            patch("hiclaw.executors.subprocess.run") as mock_run,
+            patch("hiclaw.executors.webbrowser.open", return_value=True) as mock_open,
+        ):
+            mock_run.return_value.returncode = 1
+            ok = client.open_web("https://claude.ai")
+
+        self.assertTrue(ok)
+        self.assertEqual(mock_run.call_count, 1)
+        mock_open.assert_called_once()
+
+    def test_open_web_non_wsl_uses_webbrowser(self) -> None:
+        client = ClaudeClient()
+        with (
+            patch.object(client, "_is_wsl", return_value=False),
+            patch("hiclaw.executors.webbrowser.open", return_value=True) as mock_open,
+        ):
+            ok = client.open_web("https://claude.ai")
+
+        self.assertTrue(ok)
+        mock_open.assert_called_once()
 
 
 if __name__ == "__main__":
