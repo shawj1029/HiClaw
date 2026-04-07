@@ -56,7 +56,7 @@ hiclaw task add \
   --name wake_up \
   --model haiku \
   --executor auto \
-  --message "Good morning. Please send me today's short plan." \
+  --message "only return 1." \
   --cron "0 4 * * *"
 
 # 3) run in background with 60s polling
