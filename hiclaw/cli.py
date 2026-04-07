@@ -26,6 +26,7 @@ def _build_parser() -> argparse.ArgumentParser:
     auth_sub = auth_parser.add_subparsers(dest="auth_command", required=True)
     auth_sub.add_parser("status", help="Show Claude auth status")
     auth_sub.add_parser("login", help="Run 'claude auth login'")
+    auth_sub.add_parser("open-web", help="Open Claude web page in browser")
 
     verify_parser = auth_sub.add_parser("verify", help="Verify auth by sending a small test prompt")
     verify_parser.add_argument("--model", default="sonnet")
@@ -107,6 +108,14 @@ def _cmd_auth(args: argparse.Namespace) -> int:
 
     if args.auth_command == "login":
         return client.login()
+
+    if args.auth_command == "open-web":
+        ok = client.open_web("https://claude.ai")
+        if ok:
+            print("Claude web opened.")
+            return 0
+        print("Failed to open browser.", file=sys.stderr)
+        return 1
 
     if args.auth_command == "verify":
         status = client.auth_status()

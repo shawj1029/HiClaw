@@ -7,6 +7,7 @@ HiClaw is a cross-platform CLI scheduler (WSL/macOS) that can send scheduled mes
 - Claude authentication workflow:
   - `hiclaw auth status`
   - `hiclaw auth login`
+  - `hiclaw auth open-web`
   - `hiclaw auth verify`
 - Task scheduler with three trigger styles:
   - interval (`--every`)

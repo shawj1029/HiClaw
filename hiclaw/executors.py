@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import webbrowser
 from dataclasses import dataclass
 
 from .models import ExecutionResult, Task
@@ -45,6 +46,9 @@ class ClaudeClient:
     def login(self) -> int:
         proc = subprocess.run([self.executable, "auth", "login"], check=False)
         return proc.returncode
+
+    def open_web(self, url: str = "https://claude.ai") -> bool:
+        return webbrowser.open(url)
 
     def send(self, model: str, message: str, timeout_seconds: int = 300) -> ExecutionResult:
         proc = subprocess.run(
