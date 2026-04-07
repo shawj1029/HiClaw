@@ -25,8 +25,16 @@ HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messag
 
 ## Install
 
+Download from GitHub:
+
 ```bash
+git clone git@github.com:shawj1029/HiClaw.git
 cd HiClaw
+```
+
+Install:
+
+```bash
 python3 -m pip install -e .
 ```
 
@@ -35,6 +43,46 @@ If you want web executor:
 ```bash
 python3 -m pip install -e '.[web]'
 python3 -m playwright install chromium
+```
+
+## Most Common Use Case
+
+```bash
+# 1) initialize storage (only needs to run once after install)
+hiclaw init
+
+# 2) create one simple daily task: wake_up at 4:00 AM using haiku
+hiclaw task add \
+  --name wake_up \
+  --model haiku \
+  --executor auto \
+  --message "Good morning. Please send me today's short plan." \
+  --cron "0 4 * * *"
+
+# 3) run in background with 60s polling
+hiclaw start --poll-interval 60
+
+# 4) confirm daemon is alive
+hiclaw isalive
+```
+
+Optional autostart on reboot:
+
+```bash
+hiclaw autostart install --poll-interval 60
+hiclaw autostart status
+```
+
+If you want to remove the task:
+
+```bash
+hiclaw task remove wake_up
+```
+
+If you want to stop the background scheduler:
+
+```bash
+hiclaw kill --all
 ```
 
 ## Quick Start (CLI executor)
