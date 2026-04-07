@@ -117,7 +117,7 @@ Default directory: `~/.hiclaw`
 - `history.json`: recent run history
 - `browser-profile/`: persistent browser session for web executor
 - `runtime/daemons.json`: background daemon registry
-- `runtime/hiclaw-run.log`: background run log
+- `runtime/hiclaw-run-<daemon-id>.log`: per-daemon background log
 
 Use custom path:
 
@@ -129,7 +129,7 @@ hiclaw --storage-dir /tmp/hiclaw-data task list
 
 Validated in local environment:
 
-- Unit tests: `python3 -m unittest discover -s tests -v` (21/21 pass)
+- Unit tests: `python3 -m unittest discover -s tests -v` (29/29 pass)
 - Real auth status check: success
 - Real one-shot task send via `claude -p`: success
 - Real auth verify (`hiclaw auth verify`): success
@@ -140,6 +140,13 @@ Validated in local environment:
 - For unattended scheduling, keep at least one auth path valid (`cli` or `web`).
 - In WSL, `auth web-login` requires usable GUI/browser environment.
 - `autostart` depends on `crontab` availability; if missing, use manual startup scripts.
+
+## Log Policy
+
+- Daemon mode writes to `runtime/hiclaw-run-<daemon-id>.log`.
+- While daemon is running, log is compacted every hour and keeps only the latest action record.
+- `hiclaw kill` / `hiclaw kill --all` performs normal shutdown and deletes the corresponding daemon log.
+- If daemon exits abnormally, log file is intentionally preserved for diagnosis.
 
 ## License
 

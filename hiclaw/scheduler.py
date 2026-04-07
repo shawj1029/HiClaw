@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .cron import CronExpression
@@ -15,6 +17,10 @@ class Scheduler:
     def __init__(self, storage: Storage, executor: TaskExecutor, timezone_name: str | None = None) -> None:
         self.storage = storage
         self.executor = executor
+        self.daemon_mode = os.environ.get("HICLAW_DAEMON_MODE") == "1"
+        self.daemon_log_path = os.environ.get("HICLAW_DAEMON_LOG_PATH")
+        self.log_compact_seconds = max(60, int(os.environ.get("HICLAW_LOG_COMPACT_SECONDS", "3600")))
+        self._next_log_compact_ts = time.time() + self.log_compact_seconds
         if timezone_name:
             self.timezone_name = timezone_name
         else:
@@ -28,6 +34,7 @@ class Scheduler:
         print(f"[HiClaw] Scheduler started. timezone={self.timezone_name}, poll_interval={poll_interval}s")
         while True:
             self.tick()
+            self._maybe_compact_daemon_log()
             time.sleep(max(1, poll_interval))
 
     def tick(self) -> None:
@@ -133,3 +140,52 @@ class Scheduler:
             return (slot_key != last_slot_key), slot_key
 
         return False, None
+
+    def _maybe_compact_daemon_log(self) -> None:
+        if not self.daemon_mode or not self.daemon_log_path:
+            return
+
+        now_ts = time.time()
+        if now_ts < self._next_log_compact_ts:
+            return
+
+        self._compact_log_file(Path(self.daemon_log_path))
+        self._next_log_compact_ts = now_ts + self.log_compact_seconds
+
+    @staticmethod
+    def _compact_log_file(path: Path) -> None:
+        if not path.exists():
+            return
+
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return
+
+        if not lines:
+            return
+
+        action_blocks: list[list[str]] = []
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx]
+            if line.startswith("[HiClaw] [OK]") or line.startswith("[HiClaw] [FAIL]"):
+                block = [line]
+                idx += 1
+                while idx < len(lines) and lines[idx].startswith("[HiClaw]   "):
+                    block.append(lines[idx])
+                    idx += 1
+                action_blocks.append(block)
+                continue
+            idx += 1
+
+        header = f"[HiClaw] log compacted at {utc_now().isoformat()} keep_last_action=1"
+        if action_blocks:
+            compacted = [header, *action_blocks[-1]]
+        else:
+            compacted = [header, "[HiClaw] no task action record yet"]
+
+        try:
+            path.write_text("\n".join(compacted) + "\n", encoding="utf-8")
+        except OSError:
+            return
