@@ -73,9 +73,9 @@ Optional autostart on reboot:
 hiclaw autostart install --poll-interval 60
 hiclaw autostart status
 ```
-Note, this only works on your Windows device if you automatically launch WSL. You can also use the following command in Powershell if you are running a Ubuntu system on the device
+This only works on your Windows device if you automatically launch WSL. If you are only using WSL when using Claw Code, you can also use the following command in Powershell as an alternative if you run an Ubuntu on the device:
 ```bash
-wsl -d Ubuntu -u <YourUsername> --bash -lc "hiclaw start --poll-interval 60"
+wsl -d Ubuntu -u <YourUsername> -- bash -lc "hiclaw start --poll-interval 60"
 ```
 
 If you want to remove the task:
