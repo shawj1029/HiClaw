@@ -11,7 +11,8 @@ HiClaw is a cross-platform CLI scheduler (WSL/macOS) that sends scheduled messag
   - `hiclaw auth verify`
 - Scheduler triggers
   - interval (`--every`, e.g. `30m`)
-  - cron (`--cron`, 5-field)
+  - cron (`--cron`, 5-field), 
+  e.g. cron "0 4 * * *" means 'minute 0, hour 4, any day in the month, any month, any day in the week'.
   - daily fixed times (`--at-times`, e.g. `09:00,14:30`)
 - Executors
   - `cli`: send via `claude -p`
